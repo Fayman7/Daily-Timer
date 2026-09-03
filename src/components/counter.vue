@@ -74,6 +74,9 @@ onMounted(() => {
     text.value = 'до конца таймера осталось:';
 
     if (timerStartDate && currentValue && timerIsGoing.value) {
+        buttonsStyle.value = {
+            backgroundColor: '#00000066'
+        };
         const CurrentDate = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
         const daysToRemove = CurrentDate - timerStartDate;
         if (daysToRemove > 0) {
