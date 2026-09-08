@@ -2,91 +2,206 @@
     <div id="content">
         <span>{{ text }}</span>
         <div id="timer">
-            <button @click="addValue" :style="buttonsStyle">+</button>
-            <p>{{ value }}</p>
-            <button @click="removeValue" :style="buttonsStyle">-</button>
+            <button @click="addDaysToWork" :style="buttonsStyle">+</button>
+            <p>{{ timerDaysToWork }}</p>
+            <button @click="removeDaysToWork" :style="buttonsStyle">-</button>
         </div>
-        <button @click="setTimer" :style="buttonsStyle">поставить таймер</button>
+        <button @click="startTimer" :style="buttonsStyle">поставить таймер</button>
         <button @click="resetTimer">сбросить таймер</button>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+localStorage.removeItem("date");
+localStorage.removeItem("value");
+localStorage.removeItem("timer");
 
-const value = ref(0);
-const text = ref('заведи таймер:');
+import { ref, onMounted, onUnmounted } from 'vue';
+
+// отображаемое число дней работы таймера в "string"
+const timerDaysToWork = ref('0');
+// введенное количество дней работы таймера в "int"
+const inputedDaysToWork = ref(0);
+// айди функции воспроизведения таймера
+let timerId = null;
+
+// время начала работы таймера в милисекундах
+let timerStartTime;
+// время работы таймера в милисекундах
+const timerToWorkTime = ref(0);
+// время окончания работы таймера в милисекундах
+const timerFinishTime = ref(0);
+
+// статус работы таймера
 const timerIsGoing = ref(false);
+// отображаемый статусный текст
+const text = ref('заведи таймер');
+// стиль кнопок отображающий статус их блокировки
 const buttonsStyle = ref({
     background: '#00000016'
-})
+});
 
-const addValue = () => {
-    if ((value.value < 9) && !timerIsGoing.value) {
-        value.value++;
-    } else {
-        
-    }
+
+// фун-я для добавления одного дня работы таймера при нажатии кнопки "+"
+const addDaysToWork = () => {
+    // если текущее значение дней работы таймера меньше максимального и таймер не запущен
+    if ((inputedDaysToWork.value < 9) && !timerIsGoing.value) {
+
+        inputedDaysToWork.value++;
+        // изменение отображаемого значения
+        timerDaysToWork.value = inputedDaysToWork.value;
+    };
 };
-const removeValue = () => {
-    if ((value.value > 2) && !timerIsGoing.value) {
-        value.value--;
-    }
+// фун-я для вычитания одного дня работы таймера при нажатии кнопки "-"
+const removeDaysToWork = () => {
+    // если текущее значение дней работы таймера больше минимального и таймер не запущен
+    if ((inputedDaysToWork.value > 1) && !timerIsGoing.value) {
+
+        inputedDaysToWork.value--;
+        // изменение отображаемого значения
+        timerDaysToWork.value = inputedDaysToWork.value;
+    };
 };
-const setTimer = () => {
-    if ((0 < value.value && value.value < 10) && !timerIsGoing.value && value.value !== null) {
-        const timerStartDate = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
-        localStorage.setItem("date", timerStartDate);
-        localStorage.setItem("value", value.value);
-        localStorage.setItem("timer", true)
-        text.value = 'таймер заведен!';
+// фун-я для запуска таймера при нажати кнопки "запустить таймер"
+const startTimer = () => {
+    // если текущее значение дней работы таймера в заданном диапазоне и таймер не запущен
+    if (0 < inputedDaysToWork.value && inputedDaysToWork.value < 10 && !timerIsGoing.value) {
+
+        // сохранение статуса работы таймера
         timerIsGoing.value = true;
+        // сохранение в "localStorage"
+        localStorage.setItem("timerIsGoing", true);
+
+        // время начала работы таймера в милисекундах
+        timerStartTime = Date.now();
+        // сохранение в "localStorage"
+        localStorage.setItem("timerStartTime", timerStartTime);
+
+        // время работы таймера в милисекундах
+        timerToWorkTime.value = inputedDaysToWork.value * 1000 * 60 * 60 * 24;
+        // сохранение в "localStorage"
+        localStorage.setItem("timerToWorkTime", timerToWorkTime.value);
+        // время окончания работы таймера в милисекундах
+        timerFinishTime.value = timerStartTime + timerToWorkTime.value;
+
+
+        // изменение статусного текста
+        text.value = 'таймер заведен, до конца таймера осталось';
+        // изменение статусного стиля кнопок
         buttonsStyle.value = {
             backgroundColor: '#00000066'
-        }
+        };
+
+        // изменение отображения отсчета таймера на формат "hh:mm"
+        timerDaysToWork.value =
+            timerToWorkTime.value / (1000 * 60 * 60)
+            + 'h:'
+            + timerToWorkTime.value / (1000 * 60)
+            + 'min'
+        ;
+
+        // первое обновление таймера
+        updateTime();
+        // присвоение айди цикла с обновлением таймера раз в 1 секунду (1000 милисекунд) и старт работы самого цикла
+        timerId = setInterval(updateTime, 1000);
     }
 };
+// фун-я для сброса таймера при нажати кнопки "сбросить таймер"
 const resetTimer = () => {
-    if (timerIsGoing) {
-        value.value = 0;
-        localStorage.removeItem("date");
-        localStorage.removeItem("value");
-        localStorage.setItem("timer", false);
+    // если таймер идет и отсчет не равен нулю
+    if (timerIsGoing && timerToWorkTime.value) {
+
+        // остановка цикла обновлений таймера
+        clearInterval(timerId);
+
+        // обнуление выводимых значений
+        inputedDaysToWork.value = 0;
+        timerDaysToWork.value = 0;
+        // обнуление статуса работы таймера
         timerIsGoing.value = false;
-        text.value = 'заведи таймер:';
+        // обнуление статуса в "localStorage"
+        localStorage.setItem("timerIsGoing", false);
+        // обнуление сохраненных в "localStorage" значений
+        localStorage.removeItem("timerStartTime");
+        localStorage.removeItem("timerToWorkTime");
+
+        // изменение статусного текста
+        text.value = 'таймер сброшен';
+        // изменение статусного стиля кнопок
         buttonsStyle.value = {
             backgroundColor: '#00000016'
         };
-    }
+    };
+};
+// фун-я для обновления отсчета до конца таймера
+const updateTime = () => {
+    
+    // текущее время в милисекундах
+    const currentTime = Date.now();
+    // время в милисекундах, прошедшее с начала работы таймера
+    const passedTime = currentTime - timerStartTime;
+    // обновление локального значения начала отсчета таймера
+    timerStartTime = currentTime;
+
+    // время работы таймера в милисекундах
+    timerToWorkTime.value -= passedTime;
+    // изменение отображения отсчета таймера на формат "hh:mm"
+    timerDaysToWork.value =
+        Math.floor((timerToWorkTime.value / (1000 * 60 * 60 * 24)) % 365)
+        + 'd:'
+        + Math.floor((timerToWorkTime.value / (1000 * 60 * 60)) % 24)
+        + 'h:'
+        + Math.floor((timerToWorkTime.value / (1000 * 60)) % 60)
+        + 'min'
+    ;
+
+    // если время работы таймера отрицательно или равно нулю и таймер работает
+    if (timerToWorkTime.value <= 0 && timerIsGoing.value) {
+
+        timerToWorkTime.value = 0;
+        // сброс таймера
+        resetTimer();
+        // изменение статусного текста
+        text.value = 'таймер завершился';
+    };
 };
 
-const modifyTimer = (days) => {
-    value.value = value.value - days;
-};
 
+// фун-я для установки таймера при загрузке DOM-элементов
 onMounted(() => {
-    const timerStartDate = localStorage.getItem("date");
-    const currentValue = localStorage.getItem("value");
-    console.log(currentValue);
-    value.value = currentValue;
-    console.log('onMounted', value.value)
-    timerIsGoing.value = localStorage.getItem("timer");
-    text.value = 'до конца таймера осталось:';
 
-    if (timerStartDate && currentValue && timerIsGoing.value) {
+    // вывод сохраненных значений из "localStorage"
+    timerToWorkTime.value = JSON.parse(localStorage.getItem("timerToWorkTime")) || 0;
+    timerIsGoing.value = JSON.parse(localStorage.getItem("timerIsGoing")) || false;
+    timerStartTime = JSON.parse(localStorage.getItem("timerStartTime")) || 0;
+
+
+    // если таймер работает и у таймера осталось время работы
+    if (timerIsGoing.value && timerToWorkTime.value) {
+
+        // изменение статусного текста
+        text.value = 'до конца таймера осталось';
+        // изменение статусного стиля кнопок
         buttonsStyle.value = {
             backgroundColor: '#00000066'
         };
-        const CurrentDate = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
-        const daysToRemove = CurrentDate - timerStartDate;
-        if (daysToRemove > 0) {
-            modifyTimer(daysToRemove);
-        }
+        
+        // первое обновление таймера
+        updateTime();
+        // присвоение айди цикла с обновлением таймера раз в 1 секунду (1000 милисекунд) и старт работы самого цикла
+        timerId = setInterval(updateTime, 1000);
     };
-    if (value.value < 1 && timerIsGoing.value) {
-        text.value = 'таймер завершился!';
-        resetTimer();
-    }
+});
+
+// фун-я для удаления цикла обновлений таймера при удалении DOM-элемента
+onUnmounted(() => {
+
+    // если цилк обновлений таймера есть
+    if (timerId) {
+
+        // удаление цикла
+        clearInterval(timerId);
+    };
 });
 </script>
 
@@ -118,17 +233,28 @@ onMounted(() => {
 #timer {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 20px;
+    justify-content: space-between;
+    gap: 10px;
     width: 100%;
 }
 
 #timer p {
     margin: 0;
-    font-size: 2.5rem;
-    font-weight: 300;
-    letter-spacing: -1px;
-    min-width: 40px;
+    font-size: 1.25rem;
+    font-weight: 500;
+    font-family: monospace;
+    letter-spacing: -0.5px;
+    text-align: center;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#timer button {
+    flex-shrink: 0;
+    width: 36px;
+    padding: 10px 0;
     text-align: center;
 }
 /* КОНЕЦ: Добавление монохромных стилей для блока таймера  (ИИ)*/
@@ -136,6 +262,7 @@ onMounted(() => {
 /* НАЧАЛО: Добавление минималистичного оформления текста и кнопок  (ИИ)*/
 span {
     font-size: 0.9rem;
+    text-align: center;
     text-transform: uppercase;
     letter-spacing: 1.5px;
     font-weight: 500;
